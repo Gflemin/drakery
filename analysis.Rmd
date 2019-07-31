@@ -131,7 +131,6 @@ plan = drake_plan(
   glmfeats = makeFeatSelWrapper(
     learner = learners_glm,
     resampling = resample,
-    measures = mse,
     control = ctrl_glm),
   #
   measure = mse,
@@ -173,7 +172,7 @@ plan = drake_plan(
   ela_trained = train(learners_ela, mlr_task_train_data),
   xgb_trained = train(xgb_tuned, mlr_task_train_data),
   svm_trained = train(svm_tuned, mlr_task_train_data),
-  glm_trained = train(glmfeats, mlr_task_test_data),
+  glm_trained = train(glmfeats, mlr_task_train_data),
   #
   results_rfor = predictor(rfor_trained, mlr_task_test_data, 3),
   results_ela = predictor(ela_trained, mlr_task_test_data, 3),
@@ -209,7 +208,11 @@ plan = drake_plan(
     spread(.metric, .estimate),
   #
   metrics_all = 
-    bind_rows(metrics_rfor, metrics_ela, metrics_xgb, metrics_svm, metrics_glm)
+    bind_rows(metrics_rfor, metrics_ela, metrics_xgb, metrics_svm, metrics_glm),
+  # plotting our metrics: probably want to functionalize this
+  metrics_plot = plotter(metrics_all)
+  # interpretability time
+  
 )
 
 config = drake_config(plan)
@@ -218,7 +221,6 @@ vis_drake_graph(config, hover = TRUE)
 make(plan)
 
 View(drake_history())
-
 
 
 # glm_params = makeParamSet()  need to figure out stepwise selection in MLR 
@@ -298,18 +300,66 @@ c = metrics(results_rfor, truth, response) %>%
 g = hey(model_list)
 
 loadd(metrics_all)
-
 metrics_all
 
+loadd(ctrl_glm)
+ctrl_glm
+
 loadd(glmfeats)
-glmfeats$x
+glmfeats$par.set
 
 loadd(rfor_tuning)
 rfor_tuning$x
 
-loadd(ela_trained)
+loadd(train_data)
+train_data$YY_Under_Five_Mortality_Rate_U5MR_Total_Person
+
+loadd(glm_trained)
+hey = getFeatSelResult(glm_trained)
+boof = hey$x
+
+glm_trained$
+hey$learner
+
 View(ela_trained$learner.model$lambda)
 
+meh = train_data %>%
+          select(YY_Under_Five_Mortality_Rate_U5MR_Total_Person, LL_Natural_Growth_Rate_Total) %>%
+          select(-LL_Natural_Growth_Rate_Total) %>%
+          mutate(id = row_number()) %>%
+          select(id, everything())
+
+meh2 = train_data %>%
+          select(target, boof) %>%
+          select(contains(target)) %>%
+          mutate(id = row_number()) %>%
+          select(id, target, everything())
+
+meh2
+target = "YY_Under_Five_Mortality_Rate_U5MR_Total_Person"
+
+
+boofier = train_data %>%
+  select(boof) %>%
+  mutate(id = row_number()) %>%
+  select(id, everything())
+
+merged = boofier %>%
+  left_join(meh, by = "id") %>%
+  select(-id)
+
+View(merged)
+View(boofier)
+View(meh)
+  #inner_join(meh, by = "LL_Natural_Growth_Rate_Total")
+
+boofier
+merged
+
+preds = Predictor$new(glm_trained, data = merged, y = glm_trained$task.desc$target)
+heh = FeatureImp$new(preds, loss = "mae")
+
+ggplot2::ggsave(filename = "test_plot", device = "png")
 ```
 
 

@@ -29,3 +29,11 @@ predictor = function(learner, task, digits) {
   mutate(response = round(response, digits))                        # rounding the 'response' value to set digits
 }
 
+plotter = function(metrics) { 
+  metrics %>% 
+    gather(key = "metric", "value", 2:4) %>%
+    ggplot(aes(metric, value, color = model, group = model)) + 
+    geom_line() + geom_point() + labs(title = "Model Performance Metrics",
+                                      x = "Metric",
+                                      y = "Performance")
+}
