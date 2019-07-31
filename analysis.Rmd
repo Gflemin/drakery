@@ -1,0 +1,353 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Getting the packages and functions required for analysis 
+```{r}
+source("./setup/libraries.R")       # loads packages, sets paths, and cleans environment 
+source(functions)                   # loads functions that we'll be using for analysis
+```
+
+# Import our data
+```{r}
+district_data_raw = read_csv(district_path)
+
+head(district_data_raw)
+View(district_data_raw)
+
+# mortality_subset = district_data_raw %>%
+#   select(contains("Mortality") | contains("Death")) %>%
+#   select(-YY_Under_Five_Mortality_Rate_U5MR_Total_Person)
+# 
+# death_subset = district_data_raw %>%
+#   select(contains("Death")) 
+#   
+# naughty_list = c(colnames(mortality_subset), colnames(death_subset))
+
+head(district_data_raw)
+View(district_data_raw)
+```
+
+# Set seed, shuffle, and split data 
+```{r}
+set.seed(51)     # set a seed to ensure our shuffle is the same across runs of this script        
+shuffled_district_data = district_data[sample(1:nrow(district_data)), ]  # shuffles the data frame
+split_data = initial_split(shuffled_district_data, prop = 0.7)  # doing a 70/30  train test split 
+
+### NOTE: 
+# Only doing a train test split instead of more rigorous cross-validation because we don't have enough data
+# to make that tenable
+```
+
+# Save a list of possible models and specify their hyperparameters 
+```{r}
+
+### PROBLEM:
+# Cannot currently get a for loop to make a list of learners correctly yet 
+
+# model_list = c("regr.randomForest", "regr.glmnet", "regr.xgboost", "regr.svm", "regr.glm")
+# 
+# learners = c()
+# for (i in model_list) {
+#   learners[i] = makeLearner(i)       # need to figure out how to make these names cleaner within the for loop
+# }
+
+randomForest = makeLearner("regr.randomForest")
+glmnet = makeLearner("regr.glmnet")
+xgboost = makeLearner("regr.xgboost")
+svm = makeLearner("regr.svm")
+glm = makeLearner("regr.glm")
+
+### NOTE:
+# the regression learners that are possible within MLR can be viewed with View(listLearners("regr"))
+# hyperparameters for each learn can be viewed with 
+```
+
+
+
+# Build our Drake plan
+```{r}
+plan = drake_plan(
+  #
+  raw_data= read_csv(district_path),                        # import our raw data 
+  # get rid of leaky variables
+  mortality_subset = raw_data %>%
+    select(contains("Mortality")) %>%
+    select(-YY_Under_Five_Mortality_Rate_U5MR_Total_Person),
+  death_subset = raw_data %>%
+    select(contains("Death")) ,
+  naughty_list = c(colnames(mortality_subset), colnames(death_subset)),
+  non_leaky_data = raw_data %>%
+    select(-naughty_list),
+  #
+  split_data = splitter(non_leaky_data, 0.7, 51),                 # shuffle and split our raw data
+  #
+  preprocess_recipe = preprocessor(split_data),                # fix raw data to remove missings, standardize, etc.
+  train_data = bake(preprocess_recipe, training(split_data)),  # apply preprocessing to training data
+  test_data = bake(preprocess_recipe, testing(split_data)),    # apply preprocessing to testing data
+  # 
+  # idpeeler_recipe = idpeeler(split_data),
+  # hold_train_id = bake(idpeeler_recipe, training(split_data)) %>%
+  #   rename(id = State_District_Name, truth = YY_Under_Five_Mortality_Rate_U5MR_Total_Person) %>%
+  #   mutate(truth = round(x = .$truth, digits = 3)),
+  # hold_test_id = bake(idpeeler_recipe, testing(split_data)) %>%
+  #   rename(id = State_District_Name, truth = YY_Under_Five_Mortality_Rate_U5MR_Total_Person) %>%
+  #   mutate(truth = round(x = .$truth, digits = 3)),
+  #
+  mlr_task = target(
+    mlrify(data),
+    transform = map(data = c(train_data,                    # put our preprocessed train/test data into MLR wrapper
+                             test_data))), 
+  #
+  learners_rfor = makeLearner("regr.randomForest",
+                              par.values = list(
+                                ntree = 200,
+                                mtry = 4
+                              )),
+  learners_ela = makeLearner("regr.glmnet",
+                               ),
+  learners_xgb = makeLearner("regr.xgboost",
+                              par.values = list(
+                                eta = 0.03,
+                                max_depth = 5
+                              )),
+  learners_svm = makeLearner("regr.svm",
+                              par.values = list(
+                                kernel = "linear"
+                              )),
+  learners_glm = makeLearner("regr.glm"
+                              ),
+  #
+  rfor_params = makeParamSet(
+    makeIntegerParam("ntree", lower = 100, upper = 700),
+    makeIntegerParam("mtry", lower = 2, upper = 16)),
+  # ela_params = makeParamSet(
+  #   makeDiscreteParam("lambda", seq(0.0, 0.9, 0.1))),
+  xgb_params = makeParamSet(
+    makeNumericParam("eta", lower = 0.02, upper = 0.2),
+    makeIntegerParam("max_depth", lower = 3, upper = 8)),
+  svm_params = makeParamSet(
+    makeDiscreteParam("kernel", c("linear", "polynomial", "radial", "sigmoid"))),
+  #
+  ctrl_others = makeTuneControlRandom(maxit = 100L),
+  #
+  ctrl_glm = makeFeatSelControlSequential(method = "sfs", alpha = 0.02),
+  #
+  resample = makeResampleDesc("CV", iters = 3L),
+  #
+  glmfeats = makeFeatSelWrapper(
+    learner = learners_glm,
+    resampling = resample,
+    measures = mse,
+    control = ctrl_glm),
+  #
+  measure = mse,
+  #
+  rfor_tuning = tuneParams(learners_rfor,
+                                 task = mlr_task_train_data,
+                                 resampling = resample,
+                                 measures = measure,
+                                 par.set = rfor_params,
+                                 control = ctrl_others),
+  # ela_tuning = tuneParams(learners_ela,
+  #                                task = mlr_task_train_data,
+  #                                resampling = resample,
+  #                                measures = measure,
+  #                                par.set = ela_params,
+  #                                control = ctrl_others),
+  xgb_tuning = tuneParams(learners_xgb,
+                                 task = mlr_task_train_data,
+                                 resampling = resample,
+                                 measures = measure,
+                                 par.set = xgb_params,
+                                 control = ctrl_others),
+  svm_tuning = tuneParams(learners_svm,
+                                 task = mlr_task_train_data,
+                                 resampling = resample,
+                                 measures = measure,
+                                 par.set = svm_params,
+                                 control = ctrl_others),
+  # rfor_tuned = setHyperPars(learner = makeLearner("regr.randomForest"),
+  #                           par.values = rfor_tuning$x),
+  # ela_tuned = setHyperPars(learner = makeLearner("regr.glmnet"),
+  #                           par.values = ela_tuning$x),
+  # xgb_tuned = setHyperPars(learner = makeLearner("regr.xgboost"),
+  #                           par.values = xgb_tuning$x),
+  # svm_tuned = setHyperPars(learner = makeLearner("regr.svm"),
+  #                           par.values = svm_tuning$x),
+  rfor_tuned = setHyperPars(learner = learners_rfor,
+                            par.values = rfor_tuning$x),
+  # ela_tuned = setHyperPars(learner = learners_ela,
+  #                           par.values = ela_tuning$x),
+  xgb_tuned = setHyperPars(learner = learners_xgb,
+                            par.values = xgb_tuning$x),
+  svm_tuned = setHyperPars(learner = learners_svm,
+                            par.values = svm_tuning$x),
+  #
+  rfor_trained = train(rfor_tuned, mlr_task_train_data),
+  ela_trained = train(learners_ela, mlr_task_train_data),
+  xgb_trained = train(xgb_tuned, mlr_task_train_data),
+  svm_trained = train(svm_tuned, mlr_task_train_data),
+  glm_trained = train(glmfeats, mlr_task_test_data),
+  #
+  results_rfor = predictor(rfor_trained, mlr_task_test_data, 3),
+  results_ela = predictor(ela_trained, mlr_task_test_data, 3),
+  results_xgb = predictor(xgb_trained, mlr_task_test_data, 3),
+  results_svm = predictor(svm_trained, mlr_task_test_data, 3),
+  results_glm = predictor(glm_trained, mlr_task_test_data, 3),
+  # want to merge proper id names at this point, but already spent an inordinate amount of time on it...
+  # building metrics - see NOTE
+  metrics_rfor = metrics(results_rfor, truth, response) %>%
+    select(-.estimator) %>% 
+    mutate(model = "randomForest") %>%
+    select(model, .metric, .estimate) %>%
+    spread(.metric, .estimate),
+  metrics_ela = metrics(results_ela, truth, response) %>%
+    select(-.estimator) %>% 
+    mutate(model = "ElasticNet") %>%
+    select(model, .metric, .estimate) %>%
+    spread(.metric, .estimate),
+  metrics_xgb = metrics(results_xgb, truth, response) %>%
+    select(-.estimator) %>% 
+    mutate(model = "xgBoost") %>%
+    select(model, .metric, .estimate) %>%
+    spread(.metric, .estimate),
+  metrics_svm = metrics(results_svm, truth, response) %>%
+    select(-.estimator) %>% 
+    mutate(model = "SVM") %>%
+    select(model, .metric, .estimate) %>%
+    spread(.metric, .estimate),
+  metrics_glm = metrics(results_glm, truth, response) %>%
+    select(-.estimator) %>% 
+    mutate(model = "GLM") %>%
+    select(model, .metric, .estimate) %>%
+    spread(.metric, .estimate),
+  #
+  metrics_all = 
+    bind_rows(metrics_rfor, metrics_ela, metrics_xgb, metrics_svm, metrics_glm)
+)
+
+config = drake_config(plan)
+vis_drake_graph(config, hover = TRUE)
+
+make(plan)
+
+View(drake_history())
+
+
+
+# glm_params = makeParamSet()  need to figure out stepwise selection in MLR 
+    # makeFeatSelControlSequential  ?????
+  # results = target(
+  #   train(learner, task),
+  #   transform = cross(leaner, task))
+
+### NOTE:
+# loadd(train_data)
+# glimpse(train_data)
+# train_data$LL_Total_Fertility_Rate_Urban
+# pulled above code out because I was getting a strange error with the train task due to columns of all NAs. fixed
+# by adding a line to recipes to remove variables /w zero variance
+
+### NOTE: 
+# Still need to figure more about how to use transform() within drake 
+
+### NOTE:
+# Check what a MLR model's hyperparameters are via getParamSet(makeLearner("regr.glmnet")) or similar for other 
+# models
+
+### NOTE:
+# Drake::make() will sometimes rerun old targets if you add enough new targets that are early in the pipelinel
+# still unsure why this occurs 
+
+### NOTE:
+# Ought to look into using mlr::benchmark() in the future 
+
+### NOTE:
+# Still need to merge district names onto our results dataframe 
+
+### NOTE:
+# Still need to functionalize/loop over the yardstick tibbles for cleanliness sake
+
+### ERROR:
+# Can't get tuned lambda values for glmnet to feed in correctly to setHyperPars
+
+### ERROR:
+# Unsure if vis_drake_graph can expand beyond 15 entries per column due to it not being able to show an additional
+# learner on top of what we have now 
+
+### ERROR:
+# Still unable to include id variables in the training datasets when they proceed to modeling. There has to be some
+# way to make MLR ignore them! 
+
+### ERROR:
+# Still need to get stepwise selection working with GLM, because otherwise we have a serious overfitting issue!
+
+### ERROR:
+# Function targets aren't showing up as outdated when I update them? 
+
+### ERROR:
+# We have 85 observations in testing(split_data), so why do we only have 56 in the actual results after predicting?
+
+# need to do something about how long and wide this plan is getting, or at least find a way to do good indents
+
+```
+
+
+
+```{r}
+loadd(c(results_rfor, results_ela, results_xgb, results_svm, results_glm))
+
+b = hey(model_list)
+View(results_svm)
+
+c = metrics(results_rfor, truth, response) %>%
+  select(-.estimator) %>% 
+  mutate(model = "randomForest") %>%
+  select(model, .metric, .estimate) %>%
+  spread(.metric, .estimate)
+
+g = hey(model_list)
+
+loadd(metrics_all)
+
+metrics_all
+
+loadd(glmfeats)
+glmfeats$x
+# meh = as_tibble(t(as.data.frame(metrics(results_rfor, truth, response)))) %>%
+#   rename(rmse = V1, rsq = V2, mae = V3) %>%
+#   filter(rmse <= 1 | rsq <= 1 | mae <= 1) %>%
+#   mutate(model = "randomForest") %>%
+#   select(model, rmse, rsq, mae)
+# meh
+
+
+# metrics(results_rfor, truth, response) %>%
+#   select(-.estimator) %>%
+#   gather(key = .estimate, value = .metric)
+# 
+# metrics(results_rfor, truth, response) %>%
+#   mutate(name = "randomForest") %>%
+#   select(-.estimator) 
+
+# model_list = list(results_rfor, results_ela, results_xgb, results_svm, results_glm)
+# tibble_list = list()
+# hey = function(list) {
+#   for (model in model_list){
+#     inter = as_tibble(t(as.data.frame(metrics(model, truth, response)))) %>%
+#       rename(rmse = V1, rsq = V2, mae = V3) %>%
+#       filter(rmse <= 1 | rsq <= 1 | mae <= 1) %>%
+#       mutate(model = "randomForest") %>%
+#       select(model, rmse, rsq, mae)
+#     tibble_list = c(tibble_list, inter)
+#   bind_rows(tibble_list)
+#   }
+# }
+
+?makeFeatSelWrapper
+```
+
+
+
