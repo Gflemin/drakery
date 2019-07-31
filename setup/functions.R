@@ -37,3 +37,62 @@ plotter = function(metrics) {
                                       x = "Metric",
                                       y = "Performance")
 }
+
+glm_featureimport = function(glm, data) {
+  feature_object = getFeatSelResult(glm)
+  features = feature_object$x
+  target_id = data %>%
+    select(target, features) %>%
+    select(contains(target)) %>%
+    mutate(id = row_number()) %>%
+    select(id, target, everything()) 
+  features_id = data %>%
+    select(features) %>%
+    mutate(id = row_number()) %>%
+    select(id, everything())
+  sub_features = features_id %>%
+    left_join(target_id, by = "id") %>%
+    select(-id) %>%
+    select(target, everything())
+  pred = Predictor$new(glm, data = sub_features, 
+                       y = glm$task.desc$target)
+  importance = FeatureImp$new(pred, loss = "mae")
+  importance$results %>%
+    arrange(desc(importance)) %>%
+    select(feature, importance) %>%
+    top_n(15) %>%
+    ggplot(aes(importance, reorder(feature, importance))) + 
+    geom_point() + geom_segment(aes(x = 0, xend = importance, 
+                                    y = feature, yend = feature)) 
+}
+
+other_featureimport = function(trained_model, data) {
+  features = trained_model$features
+  target_id = data %>%
+    select(target, features) %>%
+    select(contains(target)) %>%
+    mutate(id = row_number()) %>%
+    select(id, target, everything()) 
+  features_id = data %>%
+    select(features) %>%
+    mutate(id = row_number()) %>%
+    select(id, everything())
+  sub_features = features_id %>%
+    left_join(target_id, by = "id") %>%
+    select(-id) %>%
+    select(target, everything())
+  pred = Predictor$new(trained_model, data = sub_features, 
+                       y = trained_model$task.desc$target)
+  importance = FeatureImp$new(pred, loss = "mae", n.repetitions = 10)
+  importance$results %>%
+    arrange(desc(importance)) %>%
+    select(feature, importance) %>%
+    top_n(15) %>%
+    ggplot(aes(importance, reorder(feature, importance))) + 
+    geom_point() + geom_segment(aes(x = 0, xend = importance, 
+                                    y = feature, yend = feature)) + 
+    theme_minimal() #+
+    #theme(axis.text.y = element_blank()) 
+  
+}
+

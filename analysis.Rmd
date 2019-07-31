@@ -7,6 +7,7 @@ output: html_notebook
 ```{r}
 source("./setup/libraries.R")       # loads packages, sets paths, and cleans environment 
 source(functions)                   # loads functions that we'll be using for analysis
+source(targeter)
 ```
 
 # Import our data
@@ -86,6 +87,7 @@ plan = drake_plan(
   preprocess_recipe = preprocessor(split_data),                # fix raw data to remove missings, standardize, etc.
   train_data = bake(preprocess_recipe, training(split_data)),  # apply preprocessing to training data
   test_data = bake(preprocess_recipe, testing(split_data)),    # apply preprocessing to testing data
+  # save our target variable for later
   #
   mlr_task = target(
     mlrify(data),
@@ -210,18 +212,19 @@ plan = drake_plan(
   metrics_all = 
     bind_rows(metrics_rfor, metrics_ela, metrics_xgb, metrics_svm, metrics_glm),
   # plotting our metrics: probably want to functionalize this
-  metrics_plot = plotter(metrics_all)
+  metrics_plot = plotter(metrics_all),
   # interpretability time
-  
+  importance_rfor = other_featureimport(rfor_trained, train_data),
+  importance_ela = other_featureimport(ela_trained, train_data),
+  importance_xgb = other_featureimport(xgb_trained, train_data),  # prints out a lot of shit, just ignore 
+  importance_svm = other_featureimport(svm_trained, train_data),
+  importance_glm = glm_featureimport(glm_trained, train_data)
 )
 
 config = drake_config(plan)
 vis_drake_graph(config, hover = TRUE)
 
 make(plan)
-
-View(drake_history())
-
 
 # glm_params = makeParamSet()  need to figure out stepwise selection in MLR 
     # makeFeatSelControlSequential  ?????
@@ -278,6 +281,10 @@ View(drake_history())
 
 ### ERROR:
 # We have 85 observations in testing(split_data), so why do we only have 56 in the actual results after predicting?
+
+### BUG:
+# In current xgboost version that makes it act all weird when I try to do feature importance for it. pull github
+# version when I can 
 
 # need to do something about how long and wide this plan is getting, or at least find a way to do good indents
 
@@ -336,8 +343,6 @@ meh2 = train_data %>%
           select(id, target, everything())
 
 meh2
-target = "YY_Under_Five_Mortality_Rate_U5MR_Total_Person"
-
 
 boofier = train_data %>%
   select(boof) %>%
@@ -361,6 +366,70 @@ heh = FeatureImp$new(preds, loss = "mae")
 
 ggplot2::ggsave(filename = "test_plot", device = "png")
 ```
+
+```{r}
+
+  feature_object = getFeatSelResult(glm_trained)
+  features = feature_object$x
+  target_id = train_data %>%
+          select(target, features) %>%
+          select(contains(target)) %>%
+          mutate(id = row_number()) %>%
+          select(id, target, everything()) 
+  features_id = train_data %>%
+          select(features) %>%
+          mutate(id = row_number()) %>%
+          select(id, everything())
+  sub_features = features_id %>%
+          left_join(target_id, by = "id") %>%
+          select(-id) %>%
+          select(target, everything())
+  pred = Predictor$new(glm_trained, data = merged, y = glm_trained$task.desc$target)
+  importance_glm = FeatureImp$new(preds, loss = "mae")
+  
+importance_glm$results %>%
+  arrange(desc(importance)) %>%
+  select(feature, importance) %>%
+  top_n(3) %>%
+  ggplot(aes(importance, reorder(feature, importance))) + geom_point() + 
+           geom_segment(aes(x = 0, xend = importance, y = feature, yend = feature)) 
+
+
+  features = rfor_trained$features
+  target_id = train_data %>%
+    select(target, features) %>%
+    select(contains(target)) %>%
+    mutate(id = row_number()) %>%
+    select(id, target, everything()) 
+  features_id = train_data %>%
+    select(features) %>%
+    mutate(id = row_number()) %>%
+    select(id, everything())
+  sub_features = features_id %>%
+    left_join(target_id, by = "id") %>%
+    select(-id) %>%
+    select(target, everything())
+  pred = Predictor$new(rfor_trained, data = sub_features, 
+                       y = rfor_trained$task.desc$target)
+  importance_rfor = FeatureImp$new(pred, loss = "mae", n.repetitions = 10)
+  importance_rfor$results %>%
+    arrange(desc(importance)) %>%
+    select(feature, importance) %>%
+    top_n(15) %>%
+    ggplot(aes(importance, reorder(feature, importance))) + 
+    geom_point() + geom_segment(aes(x = 0, xend = importance, 
+                                    y = feature, yend = feature)) + 
+    theme_minimal() +
+    theme(axis.text.y = element_blank()) 
+    
+    
+    
+    
+    # theme(axis.text.y = element_text(size = 5)) +
+    # scale_y_discrete(labels = abbreviate)
+?str_wrap
+```
+
 
 
 

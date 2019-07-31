@@ -30,6 +30,35 @@
 #   }
 #   bind_rows(tibble_List)
 
+# loadd(train_data)
+# loadd(glm_trained)
+# loadd(rfor_trained)
+# rfor_trained$features
+# 
+# hey = glm_featureimport(train_data)
+# meh2 = train_data %>%
+#   select(target, boof) %>%
+#   select(contains(target)) %>%
+#   mutate(id = row_number()) %>%
+#   select(id, target, everything())
+# 
+# meh2
+# target = "YY_Under_Five_Mortality_Rate_U5MR_Total_Person"
+# 
+# 
+# boofier = train_data %>%
+#   select(boof) %>%
+#   mutate(id = row_number()) %>%
+#   select(id, everything())
+# 
+# merged = boofier %>%
+#   left_join(meh, by = "id") %>%
+#   select(-id)
+# 
+# hey = getFeatSelResult(glm_trained)
+# 
+# boof = hey$x
+
 ### Modeling
 
 # glm_params = makeParamSet()  need to figure out stepwise selection in MLR 
