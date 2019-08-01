@@ -13,7 +13,6 @@ scripts and, afterwards, proceeds to build and run the drake plan for the projec
 source("./setup/libraries.R")       # loads packages, sets paths, and cleans environment 
 source(functions)                   # loads functions that we'll be using for analysis
 source(targeter)
-
 ```
 
 
