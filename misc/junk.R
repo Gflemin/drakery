@@ -170,6 +170,9 @@
 # In current xgboost version that makes it act all weird when I try to do feature importance for it. pull github
 # version when I can 
 
+### BUG:
+#  Hidden .drake and .drake_history files are not being copied over to github correctly 
+
 # need to do something about how long and wide this plan is getting, or at least find a way to do good indents
 
 

@@ -1,8 +1,8 @@
 ### NOTE: 
-# Packages for using markdown/R notebooks should be installed by interacting with with the notebook document
+# Packages for using markdown/R notebooks should be installed by interacting with with the analysis.Rmd document
 
 # Install the required packages if packrat fails for some reason
-# packages = c("drake", "visNetwork", "readr", "dplyr", "recipes", "yardstick", "mlr", "ggplot2", "stringr", "here",
+# packages = c("drake", "knitr", "visNetwork", "readr", "dplyr", "recipes", "yardstick", "mlr", "ggplot2", "stringr", "here",
 #            "rsample", "iml", "randomForest", "xgboost", "e1071", "tidyr", "tibble", "devtools", "iml",
 #            "BH",  "plogr")
 # install.packages(packages)
@@ -12,6 +12,7 @@ packrat::restore()
 
 # Load the packages
 library(drake)
+library(knitr)
 library(visNetwork)
 library(readr)
 library(dplyr)
@@ -41,6 +42,6 @@ targeter = here("setup", "targeter.R")
 # Removing packages object because its no longer needed
 rm(packages)             
 
-# ???
+# Prevent mlr from spitting out certain warnings during the tuning step we don't care about 
 configureMlr(on.par.without.desc = "quiet")
 
