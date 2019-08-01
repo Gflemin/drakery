@@ -3,97 +3,61 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-# Getting the packages and functions required for analysis 
+# Intro
+
+This is the primary notebook file within this repo. The notebook imports the libraries, functions, and target
+scripts and, afterwards, proceeds to build and run the drake plan for the project. Information regarding the workflow, the functions used, and other useful functions can be found in the reference.Rmd file. 
+
+### Getting the packages and functions required for analysis 
 ```{r}
 source("./setup/libraries.R")       # loads packages, sets paths, and cleans environment 
 source(functions)                   # loads functions that we'll be using for analysis
 source(targeter)
-```
 
-# Import our data
-```{r}
-district_data_raw = read_csv(district_path)
-
-head(district_data_raw)
-View(district_data_raw)
-
-# mortality_subset = district_data_raw %>%
-#   select(contains("Mortality") | contains("Death")) %>%
-#   select(-YY_Under_Five_Mortality_Rate_U5MR_Total_Person)
-# 
-# death_subset = district_data_raw %>%
-#   select(contains("Death")) 
-#   
-# naughty_list = c(colnames(mortality_subset), colnames(death_subset))
-
-head(district_data_raw)
-View(district_data_raw)
-```
-
-# Set seed, shuffle, and split data 
-```{r}
-set.seed(51)     # set a seed to ensure our shuffle is the same across runs of this script        
-shuffled_district_data = district_data[sample(1:nrow(district_data)), ]  # shuffles the data frame
-split_data = initial_split(shuffled_district_data, prop = 0.7)  # doing a 70/30  train test split 
-
-### NOTE: 
-# Only doing a train test split instead of more rigorous cross-validation because we don't have enough data
-# to make that tenable
-```
-
-# Save a list of possible models and specify their hyperparameters 
-```{r}
-
-### PROBLEM:
-# Cannot currently get a for loop to make a list of learners correctly yet 
-
-# model_list = c("regr.randomForest", "regr.glmnet", "regr.xgboost", "regr.svm", "regr.glm")
-# 
-# learners = c()
-# for (i in model_list) {
-#   learners[i] = makeLearner(i)       # need to figure out how to make these names cleaner within the for loop
-# }
-
-randomForest = makeLearner("regr.randomForest")
-glmnet = makeLearner("regr.glmnet")
-xgboost = makeLearner("regr.xgboost")
-svm = makeLearner("regr.svm")
-glm = makeLearner("regr.glm")
-
-### NOTE:
-# the regression learners that are possible within MLR can be viewed with View(listLearners("regr"))
-# hyperparameters for each learn can be viewed with 
 ```
 
 
-
-# Build our Drake plan
+### Build, make, and visualize our drake plan
 ```{r}
+
+# Running the below code contained within the drake_plan() call simply builds the drake plan itself; it does not 
+# run the code. If one thinks of a drake_plan() object as a network graph, running drake_plan() assigns all of the 
+# objects to nodes called targets, and it builds edges between each of the targets based on whether each target
+# utilizes objects built within another target. Running a make() call on the plan is what actually runs the code
+# contained within the plan
+
 plan = drake_plan(
-  #
-  raw_data= read_csv(district_path),                        # import our raw data 
-  # get rid of leaky variables
+  # importing our raw data
+  raw_data= read_csv(district_path),                        
+  # getting rid of leaky variables to ensure our model doesn't just select from the various mortality and
+  # death-rate-related variables that are heavily correlated with our target 
   mortality_subset = raw_data %>%
-    select(contains("Mortality")) %>%
+    select(contains("Mortality")) %>%           
     select(-YY_Under_Five_Mortality_Rate_U5MR_Total_Person),
-  death_subset = raw_data %>%
-    select(contains("Death")) ,
+  death_subset = raw_data %>%                    
+    select(contains("Death")) ,                 
+  # assigning the subset of variables related to our target variable to a list which we can then use to filter
+  # them out of the raw data
   naughty_list = c(colnames(mortality_subset), colnames(death_subset)),
   non_leaky_data = raw_data %>%
     select(-naughty_list),
-  #
-  split_data = splitter(non_leaky_data, 0.7, 51),                 # shuffle and split our raw data
-  #
-  preprocess_recipe = preprocessor(split_data),                # fix raw data to remove missings, standardize, etc.
-  train_data = bake(preprocess_recipe, training(split_data)),  # apply preprocessing to training data
-  test_data = bake(preprocess_recipe, testing(split_data)),    # apply preprocessing to testing data
-  # save our target variable for later
-  #
+  # using an enhanced version of rsample::initial_split() which includes shuffling our rows and setting the split 
+  # seed so that we can get a train and test set for our data
+  split_data = splitter(non_leaky_data, 0.7, 51),                 
+  # using a custom recipes::recipe() function to create a single function that automatically handles all of the 
+  # pre-processing of our data (removes NAs, sets our target variable, normalize, etc.). bake() is then used on our   # train and test datasets to pre-process them according to the procedures within our preprocessor() function
+  preprocess_recipe = preprocessor(split_data),                
+  train_data = bake(preprocess_recipe, training(split_data)),  
+  test_data = bake(preprocess_recipe, testing(split_data)),    
+  # using our mlrify() function to wrap our pre-processed data in "task" objects that will allow mlr models to be
+  # built atop of them. every mlr model requires the data that they use to be input as either a regression 
+  # (in the case of this dataset) or a classification task using makeRegrtasK() or makeClassifTask
   mlr_task = target(
     mlrify(data),
-    transform = map(data = c(train_data,                    # put our preprocessed train/test data into MLR wrapper
+    transform = map(data = c(train_data,                  
                              test_data))), 
-  #
+  # building each of the learners (models) that we'll be using to model our data (our regression task) later on
+  # in the pipeline. basic hyperparameters are set for the model so that we can tune them later on 
   learners_rfor = makeLearner("regr.randomForest",
                               par.values = list(
                                 ntree = 200,
@@ -112,43 +76,44 @@ plan = drake_plan(
                               )),
   learners_glm = makeLearner("regr.glm"
                               ),
-  #
+  # creating makeParamSet() objects to store the hyperparameters that we will be tuning later. only basic 
+  # hyperparameters were chosen at the time of writing this comment. there are no hyperparameters for the glm
+  # model, and I was unable to get the elasticnet/glmnet hyperparameters to work properly
   rfor_params = makeParamSet(
     makeIntegerParam("ntree", lower = 100, upper = 800),
     makeIntegerParam("mtry", lower = 2, upper = 16)),
-  # ela_params = makeParamSet(
-  #   makeDiscreteParam("lambda", seq(0.0, 0.9, 0.1))),
   xgb_params = makeParamSet(
     makeNumericParam("eta", lower = 0.02, upper = 0.2),
     makeIntegerParam("max_depth", lower = 2, upper = 10)),
   svm_params = makeParamSet(
     makeDiscreteParam("kernel", c("linear", "polynomial", "radial", "sigmoid"))),
-  #
+  # creating a makeTuneControlRandom() object to indicate what method we will be using to tune our hyperparameters.
+  # in this example, we will complete 100 iterations of a random hyperparemeter search wherein the most performant
+  # set of hyperparameters will be chosen from the 100 iterations
   ctrl_others = makeTuneControlRandom(maxit = 100L),
-  #
+  # creating a separate "control" object for our glm model because it doesn't have any hyperparameters to tune and
+  # because we need to force it to select a subset of our total features to avoid multicollinearity 
   ctrl_glm = makeFeatSelControlSequential(method = "sfs", alpha = 0.02),
-  #
+  # creating a makeResampleDesc() object to assign our chosen method of model cross-validation, in this case
+  # three-fold cross-validation (would have done more folds, however our sample is a bit small)
   resample = makeResampleDesc("CV", iters = 3L),
-  #
+  # performing stepwise feature selection with three-fold cross-validation on our glm model to create a 
+  # "tuned" glm model
   glmfeats = makeFeatSelWrapper(
     learner = learners_glm,
     resampling = resample,
     control = ctrl_glm),
-  #
+  # selecting mean-squared error (mse) as our loss metric of interest for hyperparameter tuning 
   measure = mse,
-  #
+  # using the tuneParams() function to tune each model (learner) and their hyperparameters (par.set) via
+  # minimizing mse (measure) through three-fold cross-validation (control) using our training dataset (task).
+  # again, elasticnet/glmnet was not tuned because of a bug I encountered when setting the hyperparameters
   rfor_tuning = tuneParams(learners_rfor,
                                  task = mlr_task_train_data,
                                  resampling = resample,
                                  measures = measure,
                                  par.set = rfor_params,
                                  control = ctrl_others),
-  # ela_tuning = tuneParams(learners_ela,
-  #                                task = mlr_task_train_data,
-  #                                resampling = resample,
-  #                                measures = measure,
-  #                                par.set = ela_params,
-  #                                control = ctrl_others),
   xgb_tuning = tuneParams(learners_xgb,
                                  task = mlr_task_train_data,
                                  resampling = resample,
@@ -161,28 +126,30 @@ plan = drake_plan(
                                  measures = measure,
                                  par.set = svm_params,
                                  control = ctrl_others),
+  # using the tuned hyperparameters that we found from tuneParams() to create models (learners) with our 
+  # ideal set of tuned hyperparameters 
   rfor_tuned = setHyperPars(learner = learners_rfor,
                             par.values = rfor_tuning$x),
-  # ela_tuned = setHyperPars(learner = learners_ela,
-  #                           par.values = ela_tuning$x),
   xgb_tuned = setHyperPars(learner = learners_xgb,
                             par.values = xgb_tuning$x),
   svm_tuned = setHyperPars(learner = learners_svm,
                             par.values = svm_tuning$x),
-  #
+  # using the tuned models that we just made to put it in a form that can make predictiosn on new data(?)
   rfor_trained = train(rfor_tuned, mlr_task_train_data),
   ela_trained = train(learners_ela, mlr_task_train_data),
   xgb_trained = train(xgb_tuned, mlr_task_train_data),
   svm_trained = train(svm_tuned, mlr_task_train_data),
   glm_trained = train(glmfeats, mlr_task_train_data),
-  #
+  # using our trained, tuned models to make predictions on our test data (test task). prediction is accomplished
+  # via mlr::predict() wrapped in a function (predictor()) that automatically pulls out the data in a dataframe
+  # and rounds our predictions and the true values to the specified number of digits
   results_rfor = predictor(rfor_trained, mlr_task_test_data, 3),
   results_ela = predictor(ela_trained, mlr_task_test_data, 3),
   results_xgb = predictor(xgb_trained, mlr_task_test_data, 3),
   results_svm = predictor(svm_trained, mlr_task_test_data, 3),
   results_glm = predictor(glm_trained, mlr_task_test_data, 3),
-  # want to merge proper id names at this point, but already spent an inordinate amount of time on it...
-  # building metrics - see NOTE
+  # building separate dataframes for performance metrics calculated from our results data using mlr::metrics(), 
+  # which we then bind into a single dataframe and plot using our custom plotter() function - see NOTE
   metrics_rfor = metrics(results_rfor, truth, response) %>%
     select(-.estimator) %>% 
     mutate(model = "randomForest") %>%
@@ -208,228 +175,26 @@ plan = drake_plan(
     mutate(model = "GLM") %>%
     select(model, .metric, .estimate) %>%
     spread(.metric, .estimate),
-  #
   metrics_all = 
     bind_rows(metrics_rfor, metrics_ela, metrics_xgb, metrics_svm, metrics_glm),
-  # plotting our metrics: probably want to functionalize this
   metrics_plot = plotter(metrics_all),
-  # interpretability time
+  # building feature importance measures using iml::FeatureImp() wrapped in custom functions that facilitate 
+  # translation from mlr, separate procedures for our glm model, and automatic plotting - see NOTE
   importance_rfor = other_featureimport(rfor_trained, train_data),
   importance_ela = other_featureimport(ela_trained, train_data),
-  importance_xgb = other_featureimport(xgb_trained, train_data),  # prints out a lot of shit, just ignore 
+  importance_xgb = other_featureimport(xgb_trained, train_data),  # prints out a lot of crap, just ignore it 
   importance_svm = other_featureimport(svm_trained, train_data),
   importance_glm = glm_featureimport(glm_trained, train_data)
 )
 
+# Running drake_config() on our plan object to sanitize and reformat the plan parameters into a format that is 
+# usable by make() 
 config = drake_config(plan)
-vis_drake_graph(config, hover = TRUE)
 
+# Running make() on our plan object to actually run the code contained within the plan call 
 make(plan)
 
-# glm_params = makeParamSet()  need to figure out stepwise selection in MLR 
-    # makeFeatSelControlSequential  ?????
-  # results = target(
-  #   train(learner, task),
-  #   transform = cross(leaner, task))
-
-### NOTE:
-# loadd(train_data)
-# glimpse(train_data)
-# train_data$LL_Total_Fertility_Rate_Urban
-# pulled above code out because I was getting a strange error with the train task due to columns of all NAs. fixed
-# by adding a line to recipes to remove variables /w zero variance
-
-### NOTE: 
-# Still need to figure more about how to use transform() within drake 
-
-### NOTE:
-# Check what a MLR model's hyperparameters are via getParamSet(makeLearner("regr.glmnet")) or similar for other 
-# models
-
-### NOTE:
-# Drake::make() will sometimes rerun old targets if you add enough new targets that are early in the pipelinel
-# still unsure why this occurs 
-
-### NOTE:
-# Ought to look into using mlr::benchmark() in the future 
-
-### NOTE:
-# Still need to merge district names onto our results dataframe 
-
-### NOTE:
-# Still need to functionalize/loop over the yardstick tibbles for cleanliness sake
-
-### NOTE:
-# Not sure where elastic net is getting the lambda values that its using prior to tuning 
-
-### ERROR:
-# Can't get tuned lambda values for glmnet to feed in correctly to setHyperPars
-
-### ERROR:
-# Unsure if vis_drake_graph can expand beyond 15 entries per column due to it not being able to show an additional
-# learner on top of what we have now 
-
-### ERROR:
-# Still unable to include id variables in the training datasets when they proceed to modeling. There has to be some
-# way to make MLR ignore them! 
-
-### ERROR:
-# Still need to get stepwise selection working with GLM, because otherwise we have a serious overfitting issue!
-
-### ERROR:
-# Function targets aren't showing up as outdated when I update them? 
-
-### ERROR:
-# We have 85 observations in testing(split_data), so why do we only have 56 in the actual results after predicting?
-
-### BUG:
-# In current xgboost version that makes it act all weird when I try to do feature importance for it. pull github
-# version when I can 
-
-# need to do something about how long and wide this plan is getting, or at least find a way to do good indents
+# Visualizing the state of our drake plan after running make() on it 
+vis_drake_graph(config, hover = TRUE)
 
 ```
-
-
-
-```{r}
-loadd(c(results_rfor, results_ela, results_xgb, results_svm, results_glm))
-
-b = hey(model_list)
-View(results_svm)
-
-c = metrics(results_rfor, truth, response) %>%
-  select(-.estimator) %>% 
-  mutate(model = "randomForest") %>%
-  select(model, .metric, .estimate) %>%
-  spread(.metric, .estimate)
-
-g = hey(model_list)
-
-loadd(metrics_all)
-metrics_all
-
-loadd(ctrl_glm)
-ctrl_glm
-
-loadd(glmfeats)
-glmfeats$par.set
-
-loadd(rfor_tuning)
-rfor_tuning$x
-
-loadd(train_data)
-train_data$YY_Under_Five_Mortality_Rate_U5MR_Total_Person
-
-loadd(glm_trained)
-hey = getFeatSelResult(glm_trained)
-boof = hey$x
-
-glm_trained$
-hey$learner
-
-View(ela_trained$learner.model$lambda)
-
-meh = train_data %>%
-          select(YY_Under_Five_Mortality_Rate_U5MR_Total_Person, LL_Natural_Growth_Rate_Total) %>%
-          select(-LL_Natural_Growth_Rate_Total) %>%
-          mutate(id = row_number()) %>%
-          select(id, everything())
-
-meh2 = train_data %>%
-          select(target, boof) %>%
-          select(contains(target)) %>%
-          mutate(id = row_number()) %>%
-          select(id, target, everything())
-
-meh2
-
-boofier = train_data %>%
-  select(boof) %>%
-  mutate(id = row_number()) %>%
-  select(id, everything())
-
-merged = boofier %>%
-  left_join(meh, by = "id") %>%
-  select(-id)
-
-View(merged)
-View(boofier)
-View(meh)
-  #inner_join(meh, by = "LL_Natural_Growth_Rate_Total")
-
-boofier
-merged
-
-preds = Predictor$new(glm_trained, data = merged, y = glm_trained$task.desc$target)
-heh = FeatureImp$new(preds, loss = "mae")
-
-ggplot2::ggsave(filename = "test_plot", device = "png")
-```
-
-```{r}
-
-  feature_object = getFeatSelResult(glm_trained)
-  features = feature_object$x
-  target_id = train_data %>%
-          select(target, features) %>%
-          select(contains(target)) %>%
-          mutate(id = row_number()) %>%
-          select(id, target, everything()) 
-  features_id = train_data %>%
-          select(features) %>%
-          mutate(id = row_number()) %>%
-          select(id, everything())
-  sub_features = features_id %>%
-          left_join(target_id, by = "id") %>%
-          select(-id) %>%
-          select(target, everything())
-  pred = Predictor$new(glm_trained, data = merged, y = glm_trained$task.desc$target)
-  importance_glm = FeatureImp$new(preds, loss = "mae")
-  
-importance_glm$results %>%
-  arrange(desc(importance)) %>%
-  select(feature, importance) %>%
-  top_n(3) %>%
-  ggplot(aes(importance, reorder(feature, importance))) + geom_point() + 
-           geom_segment(aes(x = 0, xend = importance, y = feature, yend = feature)) 
-
-
-  features = rfor_trained$features
-  target_id = train_data %>%
-    select(target, features) %>%
-    select(contains(target)) %>%
-    mutate(id = row_number()) %>%
-    select(id, target, everything()) 
-  features_id = train_data %>%
-    select(features) %>%
-    mutate(id = row_number()) %>%
-    select(id, everything())
-  sub_features = features_id %>%
-    left_join(target_id, by = "id") %>%
-    select(-id) %>%
-    select(target, everything())
-  pred = Predictor$new(rfor_trained, data = sub_features, 
-                       y = rfor_trained$task.desc$target)
-  importance_rfor = FeatureImp$new(pred, loss = "mae", n.repetitions = 10)
-  importance_rfor$results %>%
-    arrange(desc(importance)) %>%
-    select(feature, importance) %>%
-    top_n(15) %>%
-    ggplot(aes(importance, reorder(feature, importance))) + 
-    geom_point() + geom_segment(aes(x = 0, xend = importance, 
-                                    y = feature, yend = feature)) + 
-    theme_minimal() +
-    theme(axis.text.y = element_blank()) 
-    
-    
-    
-    
-    # theme(axis.text.y = element_text(size = 5)) +
-    # scale_y_discrete(labels = abbreviate)
-?str_wrap
-```
-
-
-
-

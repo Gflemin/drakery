@@ -1,0 +1,18 @@
+---
+title: "reference"
+output: html_notebook
+---
+
+# Intro
+
+This script serves as a reference for the project workflow, the functions used, and other useful functions contained within the *drake* and *mlr* packages that were not used in the other scripts. 
+
+# Repo Intro
+
+The main purpose of this repo is to provide an example for the usefulness of the *drake* and *mlr* packages in creating interpretable, repeatable, and modular data science pipelines within R. Within it, a raw, real-world dataset is imported, processed, modeled, and benchmarked to show the primary capabiltiies of both *drake* and *mlr*. 
+
+```{r}
+
+```
+
+
