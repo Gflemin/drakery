@@ -186,11 +186,6 @@ plan = drake_plan(
   importance_glm = glm_featureimport(glm_trained, train_data)
 )
 
-##### RUN THIS TO EXECUTE CODE #####
-# Running make() on our plan object to actually run the code contained within the plan call 
-make(plan)
-##### RUN THIS TO EXECUTE CODE #####
-
 ##### RUN THESE TO VIEW DRAKE NETWORK PLOTS
 # Running drake_config() on our plan object to sanitize and reformat the plan parameters into a format that is 
 # usable by make() 
@@ -200,3 +195,12 @@ config = drake_config(plan)
 vis_drake_graph(config, hover = TRUE)
 ##### RUN THESE TO VIEW DRAKE NETWORK PLOTS
 ```
+
+# Running our drake plan
+```{r}
+##### RUN THIS TO EXECUTE CODE #####
+# Running make() on our plan object to actually run the code contained within the plan call 
+make(plan)
+##### RUN THIS TO EXECUTE CODE #####
+```
+
