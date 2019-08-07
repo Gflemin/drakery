@@ -6,17 +6,22 @@ output: html_notebook
 # Intro
 
 This is the primary notebook file within this repo. The notebook imports the libraries, functions, and target
-scripts and, afterwards, proceeds to build and run the drake plan for the project. Information regarding the workflow, the functions used, and other useful functions can be found in the reference.Rmd file. 
+scripts and, afterwards, proceeds to build and run the drake plan for the project. Information regarding the workflow, the functions used, and other useful functions can (eventually, but not yet) be found in the reference.Rmd file. 
 
 ### Getting the packages and functions required for analysis 
 ```{r}
+
+# The below code runs the scripts contained within this project repo to load the data, packages, etc. The 
+# libraries script is especially important because it sets the paths for the other scripts and loads the 
+# required packages using packrat
+
 source("./setup/libraries.R")       # loads packages, sets paths, and cleans environment 
 source(functions)                   # loads functions that we'll be using for analysis
 source(targeter)
 ```
 
 
-### Build, make, and visualize our drake plan
+### Build and visualize our drake plan
 ```{r}
 
 # Running the below code contained within the drake_plan() call simply builds the drake plan itself; it does not 
@@ -198,7 +203,7 @@ vis_drake_graph(config, hover = TRUE)
 ##### RUN THESE TO VIEW DRAKE NETWORK PLOTS
 ```
 
-# Running our drake plan
+### Running our drake plan
 ```{r}
 
 ##### RUN THIS TO EXECUTE CODE #####
@@ -208,9 +213,9 @@ make(plan)
 ```
 
 
-## Helpful commands
+# Helpful commands
 
-# View the source code of any arbitrary drake plan
+### View the source code of any arbitrary drake plan
 ```{r}
 
 # Print a formatted version of the code that built the plan w/o comments
@@ -221,7 +226,7 @@ plan
 
 ```
 
-# Peeking under the hood of the config object
+### Peeking under the hood of the config object
 ```{r}
 
 # Print tibbles of the elements of the graph 
@@ -230,14 +235,14 @@ explore$nodes # nodes
 explore$edges # edges
 ```
 
-# Viewing the full legend for vis_drake_network
+### Viewing the full legend for vis_drake_network
 ```{r}
 
 # Print an image of all possible node types for a drake network graph
 visNetwork(nodes = legend_nodes())
 ```
 
-# Subsetting our network graph
+### Subsetting our network graph
 ```{r}
 
 # Drop imported objects and only view targets
