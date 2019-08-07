@@ -4,7 +4,7 @@
 # Install the required packages if packrat fails for some reason
 # packages = c("drake", "knitr", "visNetwork", "readr", "dplyr", "recipes", "yardstick", "mlr", "ggplot2", "stringr", "here",
 #            "rsample", "iml", "randomForest", "xgboost", "e1071", "tidyr", "tibble", "devtools", "iml",
-#            "BH",  "plogr")
+#            "BH",  "plogr", "styler")
 # install.packages(packages)
 
 # Restore packrat packages
@@ -24,6 +24,7 @@ library(stringr)
 library(here)
 library(rsample)
 library(iml)
+library(ggraph)
 library(randomForest)
 library(xgboost)
 library(e1071)
@@ -33,6 +34,7 @@ library(devtools)
 library(iml)
 library(BH)
 library(plogr)
+library(styler)
 
 # Setting paths with here
 functions = here("setup", "functions.R")
