@@ -38,11 +38,11 @@ plan = drake_plan(
   # assigning the subset of variables related to our target variable to a list which we can then use to filter
   # them out of the raw data
   naughty_list = c(colnames(mortality_subset), colnames(death_subset)),
-  non_leaky_data = raw_data %>%
+  nleaky_data = raw_data %>%
     select(-naughty_list),
   # using an enhanced version of rsample::initial_split() which includes shuffling our rows and setting the split 
   # seed so that we can get a train and test set for our data
-  split_data = splitter(non_leaky_data, 0.7, 51),                 
+  split_data = splitter(nleaky_data, 0.7, 51),                 
   # using a custom recipes::recipe() function to create a single function that automatically handles all of the 
   # pre-processing of our data (removes NAs, sets our target variable, normalize, etc.). bake() is then used on our   # train and test datasets to pre-process them according to the procedures within our preprocessor() function
   preprocess_recipe = preprocessor(split_data),                
@@ -193,14 +193,89 @@ config = drake_config(plan)
 
 # Visualizing the state of our drake plan after running make() on it 
 vis_drake_graph(config, hover = TRUE)
+# Can also build a ggraph of our drake network instead of a visNetwork object using
+# drake_ggraph(config)
 ##### RUN THESE TO VIEW DRAKE NETWORK PLOTS
 ```
 
 # Running our drake plan
 ```{r}
+
 ##### RUN THIS TO EXECUTE CODE #####
 # Running make() on our plan object to actually run the code contained within the plan call 
 make(plan)
 ##### RUN THIS TO EXECUTE CODE #####
 ```
+
+
+## Helpful commands
+
+# View the source code of any arbitrary drake plan
+```{r}
+
+# Print a formatted version of the code that built the plan w/o comments
+drake_plan_source(plan)
+
+# Print a tibble of each target and the corresponding code for each one by just typing in the plan name 
+plan
+
+```
+
+# Peeking under the hood of the config object
+```{r}
+
+# Print tibbles of the elements of the graph 
+explore = drake_graph_info(config)
+explore$nodes # nodes
+explore$edges # edges
+```
+
+# Viewing the full legend for vis_drake_network
+```{r}
+
+# Print an image of all possible node types for a drake network graph
+visNetwork(nodes = legend_nodes())
+```
+
+# Subsetting our network graph
+```{r}
+
+# Drop imported objects and only view targets
+vis_drake_graph(config, targets_only = TRUE) # still looks cluttered bc we have so much going on at first step
+
+# Just show up-stream nodes
+vis_drake_graph(config, from = "learners_rfor") # doesn't show our data, ctrl objects, resampling, etc. still good!
+vis_drake_graph(config, from = "learners_glm")
+vis_drake_graph(config, from = c("learners_rfor", "learners_xgb")) 
+vis_drake_graph(config, from = "raw_data") # almost as big as original!
+
+# Just show down-stream nodes
+vis_drake_graph(config, from = c("mlr_task_train_data", "mlr_task_test_data"), mode = "in") # data flow 
+vis_drake_graph(config, from = "metrics_glm", mode = "in") # probably the best way to show this network, per model
+
+
+# Showa neighborhood of targets in both directions
+vis_drake_graph(config, from = "results_glm", mode = "all", order = 2) # where order = <#> changes nodes out range
+
+# Group and cluster our targets 
+vis_drake_graph(config,
+                group = "imported",
+                clusters = "TRUE",
+                from = "metrics_glm", 
+                mode = "in")          # very uggo. unfortunately, no way yet to make multiple groups 
+```
+
+
+
+# Other notable features not covered here
+# - drake can handle high-performance computing and parallelization, see:
+#     https://ropenscilabs.github.io/drake-manual/hpc.html
+# - a great example of a drake workflow implemented as package can be found here: 
+#     https://github.com/tiernanmartin/drakepkg
+# - the triggers that determine whether a drake target needs to be reran can be changed, see here:
+#     https://ropenscilabs.github.io/drake-manual/hpc.html
+# - for massive plans, drake can even be asked to build targets on its own, see:
+#     https://ropenscilabs.github.io/drake-manual/plans.html#large-plans
+
+
 
