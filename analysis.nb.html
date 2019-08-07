@@ -2020,6 +2020,32 @@ visNetwork(nodes = legend_nodes())</code></pre>
 <h3>Subsetting our network graph</h3>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuXG4jIERyb3AgaW1wb3J0ZWQgb2JqZWN0cyBhbmQgb25seSB2aWV3IHRhcmdldHNcbnZpc19kcmFrZV9ncmFwaChjb25maWcsIHRhcmdldHNfb25seSA9IFRSVUUpICMgc3RpbGwgbG9va3MgY2x1dHRlcmVkIGJjIHdlIGhhdmUgc28gbXVjaCBnb2luZyBvbiBhdCBmaXJzdCBzdGVwXG5cbiMgSnVzdCBzaG93IHVwLXN0cmVhbSBub2Rlc1xudmlzX2RyYWtlX2dyYXBoKGNvbmZpZywgZnJvbSA9IFwibGVhcm5lcnNfcmZvclwiKSAjIGRvZXNuJ3Qgc2hvdyBvdXIgZGF0YSwgY3RybCBvYmplY3RzLCByZXNhbXBsaW5nLCBldGMuIHN0aWxsIGdvb2QhXG52aXNfZHJha2VfZ3JhcGgoY29uZmlnLCBmcm9tID0gXCJsZWFybmVyc19nbG1cIilcbnZpc19kcmFrZV9ncmFwaChjb25maWcsIGZyb20gPSBjKFwibGVhcm5lcnNfcmZvclwiLCBcImxlYXJuZXJzX3hnYlwiKSkgXG52aXNfZHJha2VfZ3JhcGgoY29uZmlnLCBmcm9tID0gXCJyYXdfZGF0YVwiKSAjIGFsbW9zdCBhcyBiaWcgYXMgb3JpZ2luYWwhXG5cbiMgSnVzdCBzaG93IGRvd24tc3RyZWFtIG5vZGVzXG52aXNfZHJha2VfZ3JhcGgoY29uZmlnLCBmcm9tID0gYyhcIm1scl90YXNrX3RyYWluX2RhdGFcIiwgXCJtbHJfdGFza190ZXN0X2RhdGFcIiksIG1vZGUgPSBcImluXCIpICMgZGF0YSBmbG93IFxudmlzX2RyYWtlX2dyYXBoKGNvbmZpZywgZnJvbSA9IFwibWV0cmljc19nbG1cIiwgbW9kZSA9IFwiaW5cIikgIyBwcm9iYWJseSB0aGUgYmVzdCB3YXkgdG8gc2hvdyB0aGlzIG5ldHdvcmssIHBlciBtb2RlbFxuXG5cbiMgU2hvd2EgbmVpZ2hib3Job29kIG9mIHRhcmdldHMgaW4gYm90aCBkaXJlY3Rpb25zXG52aXNfZHJha2VfZ3JhcGgoY29uZmlnLCBmcm9tID0gXCJyZXN1bHRzX2dsbVwiLCBtb2RlID0gXCJhbGxcIiwgb3JkZXIgPSAyKSAjIHdoZXJlIG9yZGVyID0gPCM+IGNoYW5nZXMgbm9kZXMgb3V0IHJhbmdlXG5cbiMgR3JvdXAgYW5kIGNsdXN0ZXIgb3VyIHRhcmdldHMgXG52aXNfZHJha2VfZ3JhcGgoY29uZmlnLFxuICAgICAgICAgICAgICAgIGdyb3VwID0gXCJpbXBvcnRlZFwiLFxuICAgICAgICAgICAgICAgIGNsdXN0ZXJzID0gXCJUUlVFXCIsXG4gICAgICAgICAgICAgICAgZnJvbSA9IFwibWV0cmljc19nbG1cIiwgXG4gICAgICAgICAgICAgICAgbW9kZSA9IFwiaW5cIikgICAgICAgICAgIyB2ZXJ5IHVnZ28uIHVuZm9ydHVuYXRlbHksIG5vIHdheSB5ZXQgdG8gbWFrZSBtdWx0aXBsZSBncm91cHMgXG5gYGAifQ== -->
+<pre class="r"><code>
+# Drop imported objects and only view targets
+vis_drake_graph(config, targets_only = TRUE) # still looks cluttered bc we have so much going on at first step
+
+# Just show up-stream nodes
+vis_drake_graph(config, from = &quot;learners_rfor&quot;) # doesn't show our data, ctrl objects, resampling, etc. still good!
+vis_drake_graph(config, from = &quot;learners_glm&quot;)
+vis_drake_graph(config, from = c(&quot;learners_rfor&quot;, &quot;learners_xgb&quot;)) 
+vis_drake_graph(config, from = &quot;raw_data&quot;) # almost as big as original!
+
+# Just show down-stream nodes
+vis_drake_graph(config, from = c(&quot;mlr_task_train_data&quot;, &quot;mlr_task_test_data&quot;), mode = &quot;in&quot;) # data flow 
+vis_drake_graph(config, from = &quot;metrics_glm&quot;, mode = &quot;in&quot;) # probably the best way to show this network, per model
+
+
+# Showa neighborhood of targets in both directions
+vis_drake_graph(config, from = &quot;results_glm&quot;, mode = &quot;all&quot;, order = 2) # where order = &lt;#&gt; changes nodes out range
+
+# Group and cluster our targets 
+vis_drake_graph(config,
+                group = &quot;imported&quot;,
+                clusters = &quot;TRUE&quot;,
+                from = &quot;metrics_glm&quot;, 
+                mode = &quot;in&quot;)          # very uggo. unfortunately, no way yet to make multiple groups </code></pre>
+<!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 </div>
