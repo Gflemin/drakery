@@ -36,14 +36,13 @@ library(BH)
 library(plogr)
 library(styler)
 
-# Setting paths with here
-functions = here("setup", "functions.R")
-district_path = here("data", "Key_indicator_districtwise.csv")
-targeter = here("setup", "targeter.R")
+# # Setting paths with here
+# functions = here("setup", "functions.R")
+# district_path = here("data", "Key_indicator_districtwise.csv")
+# targeter = here("setup", "targeter.R")
 
 # Removing packages object because its no longer needed
 rm(packages)             
 
-# Prevent mlr from spitting out certain warnings during the tuning step we don't care about 
-configureMlr(on.par.without.desc = "quiet")
+
 
