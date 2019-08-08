@@ -32,7 +32,7 @@ source("./setup/setup.R")           # loads our model target and fixes some defa
 
 plan = drake_plan(
   # importing our raw data
-  raw_data= read_csv(district_path),                        
+  raw_data= read_csv("./data/Key_indicator_districtwise.csv"),                        
   # getting rid of leaky variables to ensure our model doesn't just select from the various mortality and
   # death-rate-related variables that are heavily correlated with our target 
   mortality_subset = raw_data %>%
@@ -108,7 +108,7 @@ plan = drake_plan(
     resampling = resample,
     control = ctrl_glm),
   # selecting mean-squared error (mse) as our loss metric of interest for hyperparameter tuning 
-  measure = mse,
+  measure = rmse,
   # using the tuneParams() function to tune each model (learner) and their hyperparameters (par.set) via
   # minimizing mse (measure) through three-fold cross-validation (control) using our training dataset (task).
   # again, elasticnet/glmnet was not tuned because of a bug I encountered when setting the hyperparameters
