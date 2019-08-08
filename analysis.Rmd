@@ -9,20 +9,20 @@ This is the primary notebook file within this repo. The notebook imports the lib
 scripts and, afterwards, proceeds to build and run the drake plan for the project. Information regarding the workflow, the functions used, and other useful functions can (eventually, but not yet) be found in the reference.Rmd file. 
 
 ### Getting the packages and functions required for analysis 
-```{r}
+```{r message = FALSE}
 
 # The below code runs the scripts contained within this project repo to load the data, packages, etc. The 
 # libraries script is especially important because it sets the paths for the other scripts and loads the 
 # required packages using packrat
 
-source("./setup/libraries.R")       # loads packages, sets paths, and cleans environment 
-source(functions)                   # loads functions that we'll be using for analysis
-source(targeter)
+source("./setup/libraries.R")       # loads packages and cleans environment 
+source("./setup/functions.R")       # loads functions that we'll be using for analysis
+source("./setup/setup.R")           # loads our model target and fixes some default settings
 ```
 
 
 ### Build and visualize our drake plan
-```{r}
+```{r message = FALSE}
 
 # Running the below code contained within the drake_plan() call simply builds the drake plan itself; it does not 
 # run the code. If one thinks of a drake_plan() object as a network graph, running drake_plan() assigns all of the 
@@ -181,14 +181,14 @@ plan = drake_plan(
     spread(.metric, .estimate),
   metrics_all = 
     bind_rows(metrics_rfor, metrics_ela, metrics_xgb, metrics_svm, metrics_glm),
-  metrics_plot = plotter(metrics_all),
-  # building feature importance measures using iml::FeatureImp() wrapped in custom functions that facilitate 
-  # translation from mlr, separate procedures for our glm model, and automatic plotting - see NOTE
-  importance_rfor = other_featureimport(rfor_trained, train_data),
-  importance_ela = other_featureimport(ela_trained, train_data),
-  importance_xgb = other_featureimport(xgb_trained, train_data),  # prints out a lot of crap, just ignore it 
-  importance_svm = other_featureimport(svm_trained, train_data),
-  importance_glm = glm_featureimport(glm_trained, train_data)
+  metrics_plot = plotter(metrics_all)
+  # # building feature importance measures using iml::FeatureImp() wrapped in custom functions that facilitate 
+  # # translation from mlr, separate procedures for our glm model, and automatic plotting - see NOTE
+  # importance_rfor = other_featureimport(rfor_trained, train_data),
+  # importance_ela = other_featureimport(ela_trained, train_data),
+  # importance_xgb = other_featureimport(xgb_trained, train_data),  # prints out a lot of crap, just ignore it 
+  # importance_svm = other_featureimport(svm_trained, train_data),
+  # importance_glm = glm_featureimport(glm_trained, train_data)
 )
 
 ##### RUN THESE TO VIEW DRAKE NETWORK PLOTS
@@ -223,7 +223,6 @@ drake_plan_source(plan)
 
 # Print a tibble of each target and the corresponding code for each one by just typing in the plan name 
 plan
-
 ```
 
 ### Peeking under the hood of the config object
@@ -283,4 +282,8 @@ vis_drake_graph(config,
 #     https://ropenscilabs.github.io/drake-manual/plans.html#large-plans
 
 
-
+# Presentation order of ops
+# 1. change the metric to rmse and show how objects now outdated
+# 2. add a comment to a function and show how nothing changed
+# 3. change a fx and show how it changed
+# 4. run through cells
